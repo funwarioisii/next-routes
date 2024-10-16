@@ -1,7 +1,7 @@
 use clap::Parser;
-use std::fs;
-use std::path::Path;
 use std::error::Error;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -28,10 +28,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             for route in routes {
                 println!("{}", route);
             }
-        },
+        }
         RouterType::App => {
             return Err("App Router detected. This tool currently only supports Pages Router. App Router support is under development.".into());
-        },
+        }
     }
 
     Ok(())
@@ -46,11 +46,14 @@ fn detect_router_type(src: bool) -> Result<RouterType, Box<dyn Error>> {
     } else if Path::new(pages_dir).exists() {
         Ok(RouterType::Pages)
     } else {
-        Err("Neither Pages Router nor App Router detected. Please check your project structure.".into())
+        Err(
+            "Neither Pages Router nor App Router detected. Please check your project structure."
+                .into(),
+        )
     }
 }
 
-fn get_routes(pages_dir: &str) -> Result<Vec<String>, Box<dyn Error>> {
+fn get_routes(pages_dir: &str) -> Result<Vec<PathBuf>, Box<dyn Error>> {
     let path = Path::new(pages_dir);
     if !path.exists() {
         return Err(format!("Directory '{}' not found", pages_dir).into());
@@ -58,7 +61,7 @@ fn get_routes(pages_dir: &str) -> Result<Vec<String>, Box<dyn Error>> {
     Ok(get_files(path))
 }
 
-fn get_files(path: &Path) -> Vec<String> {
+fn get_files(path: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
@@ -67,9 +70,7 @@ fn get_files(path: &Path) -> Vec<String> {
                 files.extend(get_files(&path));
             } else if let Some(ext) = path.extension() {
                 if ext == "tsx" || ext == "ts" {
-                    if let Some(file_str) = path.to_str() {
-                        files.push(file_str.to_string());
-                    }
+                    files.push(path);
                 }
             }
         }
@@ -77,21 +78,16 @@ fn get_files(path: &Path) -> Vec<String> {
     files
 }
 
-fn generate_page_routes(files: Vec<String>) -> Vec<String> {
-    let routes: Vec<String> = files
+fn generate_page_routes(files: Vec<PathBuf>) -> Vec<String> {
+    let mut routes: Vec<String> = files
         .iter()
-        .map(|f| file_to_url_path(f))
+        .map(|f| file_to_url_path(f.to_str().unwrap()))
         .collect();
-    
-    let mut routes_with_file_name: Vec<String> = routes
-        .iter()
-        .map(|r| remove_filename(r))
-        .collect();
-    
-    routes_with_file_name.sort();
-    routes_with_file_name.dedup();
-    
-    routes_with_file_name
+
+    routes.sort();
+    routes.dedup();
+
+    routes
 }
 
 fn file_to_url_path(file: &str) -> String {
@@ -99,22 +95,15 @@ fn file_to_url_path(file: &str) -> String {
         .strip_prefix("src/pages/")
         .or_else(|| file.strip_prefix("pages/"))
         .unwrap_or(file);
-    
+
     let path_without_extension = path
         .strip_suffix(".tsx")
         .or_else(|| path.strip_suffix(".ts"))
         .unwrap_or(path);
-    
+
     if path_without_extension == "index" {
         "/".to_string()
     } else {
         format!("/{}", path_without_extension.replace('\\', "/"))
     }
-}
-
-fn remove_filename(path: &str) -> String {
-    path.rsplit_once('/')
-        .map(|(dir, _)| if dir.is_empty() { "/" } else { dir })
-        .unwrap_or("/")
-        .to_string()
 }
