@@ -78,10 +78,13 @@ fn get_files(path: &Path) -> Vec<PathBuf> {
     files
 }
 
+const PAGES_RESERVED_ROUTES: [&str; 5] = ["/404", "/500", "/_app", "/_document", "/_error"];
+
 fn generate_page_routes(files: Vec<PathBuf>) -> Vec<String> {
     let mut routes: Vec<String> = files
         .iter()
         .map(|f| file_to_url_path(f.to_str().unwrap()))
+        .filter(|f| !PAGES_RESERVED_ROUTES.contains(&f.as_str()))
         .collect();
 
     routes.sort();
@@ -104,6 +107,11 @@ fn file_to_url_path(file: &str) -> String {
     if path_without_extension == "index" {
         "/".to_string()
     } else {
-        format!("/{}", path_without_extension.replace('\\', "/"))
+        let url = format!("/{}", path_without_extension.replace('\\', "/"));
+        if url.ends_with("/index") {
+            url.strip_suffix("/index").unwrap().to_string()
+        } else {
+            url
+        }
     }
 }
